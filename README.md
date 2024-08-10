@@ -8,6 +8,10 @@ The script displays:
 - Previously recorded time
 - Death counter
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/cobrce/Eldenring-boss-timer-ASL/master/img.png">
+</p>
+
 
 ### How to use:
 Your layout should containt (an example layout is provided in the repo):
