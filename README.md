@@ -10,17 +10,13 @@ The script displays:
 
 
 ### How to use:
-Your layout should containt (an example layout is provided in the repo):
-- Timer
-- Scriptable Auto splitter : the path should point to the asl provided in this repository
-- 2 Textbox (Plus button->Information->Text)
-
-The timing method should be "Game Time", the script will ask to change it if it's not the case
-
-Play elddenring, enjoy!
+- Your layout should contain at least a timer, add this script as a Scriptable Auto Splitter that, the other controls will be created automatically
+- The timing method should be "Game Time", the script will ask to change it if it's not the case
+- Play elddenring, enjoy!
 
 
 ## Credit
 - Thanks to The Grand Archives for the AOB pattern
 - Thanks to [drtchops](https://github.com/drtchops/asl) for the the ASL repository
+- Thanks to Ero from autosplitter's discord for the help with controls creation
 

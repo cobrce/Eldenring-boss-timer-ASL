@@ -16,67 +16,63 @@ startup
         print(String.Format("[ER boss timer : {0}] {1}",title,text));
     });
     #endregion
+    
+    #region Create/Find Textboxes
+    var controls = new Dictionary<String,LiveSplit.UI.Components.ILayoutComponent>();
+
+    vars.setText = (Action<String,String>)((Value1,Value2)=>
+    {
+        LiveSplit.UI.Components.ILayoutComponent control = null;
+
+        if (!controls.TryGetValue(Value1,out control))
+        {
+            foreach (var c in timer.Layout.LayoutComponents) // try to find it in layout
+            {
+                try
+                {
+                    dynamic comp = c.Component;
+                    if (comp.Settings.Text1 == Value1)
+                    {
+                            controls[Value1] = control =  c;
+                            vars.logt("control found", Value1);
+                            break;
+                    }
+                }
+                catch 
+                {
+                    
+                }
+            }
+            if (control == null)
+            {
+                controls[Value1]= control = LiveSplit.UI.Components.ComponentManager.LoadLayoutComponent("LiveSplit.Text.dll",timer);
+                vars.logt("control created", Value1);
+            }
+            if (!timer.Layout.LayoutComponents.Contains(control))
+            {
+                vars.logt("control added", Value1);
+                timer.Layout.LayoutComponents.Add(control);
+            }
+        }
+        dynamic component = control.Component;
+        component.Settings.Text1 = Value1;
+        component.Settings.Text2 = Value2;    
+    });
+
+    #endregion
 
     #region Update textboxes
     
     vars.prevBoss = (Action<TimeSpan>)((time)=>
     {
-        if (vars.textboxes[0] == null)
-        {
-            vars.logt("previous boss textbox","not found");
-        }
-        else
-        {
-            vars.textboxes[0].Settings.Text1 = "Previous boss";
-            vars.textboxes[0].Settings.Text2 = new DateTime(time.Ticks).ToString("HH:mm:ss.ff");
-        }
-
+        vars.setText("Previous boss",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
     });
 
     vars.displayDeathCounter = (Action<int>)((counter) =>
     {
-
-        if (vars.textboxes[1] == null)
-        {
-            vars.logt("previous boss textbox","not found");
-        }
-        else
-        {
-            vars.textboxes[1].Settings.Text1 = "Death counter";
-            vars.textboxes[1].Settings.Text2 = counter.ToString();
-        }
+        vars.setText("Death counter",counter.ToString());
 
     });
-    #endregion
-
-    #region search for textbox
-    var mainwindow = Process.GetCurrentProcess().MainWindowHandle;
-    dynamic form = Form.FromHandle(mainwindow);
-    vars.textboxes = new object[2];
-    
-    int i = 0;
-    foreach (var comp in form.CurrentState.Layout.Components)
-    {
-        var name = comp.ToString();
-        if (name.Contains("Text"))
-        {
-            switch(i++)
-            {
-                case 0:
-                    vars.logt("previous boss textbox", "found"); 
-                    vars.textboxes[0] = comp;
-                    break;
-                case 1:
-                    vars.logt("death counter textbox", "found");
-                    vars.textboxes[1] = comp;
-                    break;
-                default:
-                    vars.logt("extra textbox","found");
-                break;
-            };
-        }
-    }
-    vars.prevBoss(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
     #endregion
 
     #region Correct timing method
@@ -127,6 +123,11 @@ startup
             return ptr + offsetSize + remainingBytes + offset;
         });
     #endregion
+
+    #region init controls
+    vars.prevBoss(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+    vars.displayDeathCounter(0);
+    #endregion
 }
 
 init
@@ -150,7 +151,6 @@ init
     vars.deathCount.Update(game);
     vars.displayDeathCounter(vars.deathCount.Current);
     vars.logt("death count", vars.deathCount.Current.ToString());
-
 
 }
 
