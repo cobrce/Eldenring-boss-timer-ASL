@@ -12,6 +12,11 @@ The script displays:
   <img src="https://raw.githubusercontent.com/cobrce/Eldenring-boss-timer-ASL/master/img.png">
 </p>
 
+- The timer starts with a boss fight, and is paused whenever the fight ends(win / loss / quitout)
+- The death counter displays the number of times the character died
+- If a new boss fight starts the timer is restarted and its previous value is moved to "previous fight time"
+- the two last textboxes display informations about the last victory, the first one is the time spent, the second one is the name of the defeated boss
+
 
 ### How to use:
 - Your layout should contain at least a timer, add this script as a Scriptable Auto Splitter that, the other controls will be created automatically
