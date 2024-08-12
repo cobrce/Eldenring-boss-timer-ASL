@@ -6,35 +6,45 @@ startup
 {
     vars.shouldReset = false;
 
+    Console.Clear();
+    Console.WriteLine(DateTime.Now.ToString());
+
     #region log
+
+    vars.msgb = (Action<String>)((text) =>
+    {
+        MessageBox.Show(text,"SoulMemScript",MessageBoxButtons.OK,MessageBoxIcon.Information);
+    });
+
     vars.log = (Action<String>) ((text) =>
     {
         print(String.Format("[ER boss timer] {0}",text));
+        Console.WriteLine(String.Format("[ER boss timer] {0}",text));
     });
     vars.logt = (Action<String,String>)((title,text)=>
     {
         print(String.Format("[ER boss timer : {0}] {1}",title,text));
+        Console.WriteLine(String.Format("[ER boss timer : {0}] {1}",title,text));
+
     });
     #endregion
     
     #region Create/Find Textboxes
     var controls = new Dictionary<String,LiveSplit.UI.Components.ILayoutComponent>();
-
-    vars.setText = (Action<String,String>)((Value1,Value2)=>
+    vars.GetControl = (Func<String,object>)((controlName)=>
     {
         LiveSplit.UI.Components.ILayoutComponent control = null;
-
-        if (!controls.TryGetValue(Value1,out control))
+        if (!controls.TryGetValue(controlName,out control))
         {
             foreach (var c in timer.Layout.LayoutComponents) // try to find it in layout
             {
                 try
                 {
                     dynamic comp = c.Component;
-                    if (comp.Settings.Text1 == Value1)
+                    if (comp.Settings.Text1 == controlName)
                     {
-                            controls[Value1] = control =  c;
-                            vars.logt("control found", Value1);
+                            controls[controlName] = control =  c;
+                            vars.logt("control found", controlName);
                             break;
                     }
                 }
@@ -45,33 +55,71 @@ startup
             }
             if (control == null)
             {
-                controls[Value1]= control = LiveSplit.UI.Components.ComponentManager.LoadLayoutComponent("LiveSplit.Text.dll",timer);
-                vars.logt("control created", Value1);
+                controls[controlName]= control = LiveSplit.UI.Components.ComponentManager.LoadLayoutComponent("LiveSplit.Text.dll",timer);
+                vars.logt("control created", controlName);
             }
             if (!timer.Layout.LayoutComponents.Contains(control))
             {
-                vars.logt("control added", Value1);
+                vars.logt("control added", controlName);
                 timer.Layout.LayoutComponents.Add(control);
             }
         }
-        dynamic component = control.Component;
+        return (object)control;
+
+    });
+
+    vars.CreateSeparator = (Action<bool>)((ignoreExistant)=>
+    {
+        bool found = false;
+            foreach (var c in timer.Layout.LayoutComponents)
+            {
+                if(c.Component is LiveSplit.UI.Components.SeparatorComponent)
+                {
+                    vars.logt("Sperator", "Existing");
+                    found = true;
+                    break;
+                }
+        }
+        if (ignoreExistant || !found)
+        {
+            var compo = new LiveSplit.UI.Components.LayoutComponent("",new LiveSplit.UI.Components.SeparatorComponent());
+            timer.Layout.LayoutComponents.Add(compo);
+            vars.logt("Separator","Created");
+        }
+    });
+    #endregion
+
+    #region Update textboxes
+
+    vars.setText = (Action<String,String>)((Value1,Value2)=>
+    {
+        dynamic component = vars.GetControl(Value1).Component;
         component.Settings.Text1 = Value1;
         component.Settings.Text2 = Value2;    
     });
 
-    #endregion
 
-    #region Update textboxes
     
-    vars.prevBoss = (Action<TimeSpan>)((time)=>
+    vars.prevBossTime = (Action<TimeSpan>)((time)=>
     {
-        vars.setText("Previous boss",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+        vars.setText("Previous fight time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
     });
+
 
     vars.displayDeathCounter = (Action<int>)((counter) =>
     {
         vars.setText("Death counter",counter.ToString());
 
+    });
+
+    vars.PreviousKillTime = (Action<TimeSpan>)((time)=>
+    {
+        vars.setText("Previous boss time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+    });
+
+    vars.prevBossName = (Action<String>)((name)=>
+    {
+        vars.setText(" ",name);
     });
     #endregion
 
@@ -124,9 +172,67 @@ startup
         });
     #endregion
 
+    #region Load soulmemory.dll
+
+    vars.loadSoulMem = (Func<bool>)(()=> 
+    {
+        try
+        {
+            var dir = Path.GetDirectoryName(timer.GetType().Assembly.Location);
+            var location = Path.Combine(dir,"components","soulmemory.dll");
+            if (!File.Exists(location))
+            {
+                vars.err = "soulmemory.dll not found";
+                return false;
+            }
+            
+            vars.logt("soulmemory.dll", "found");
+
+            vars.err = "Can't load soulmemory.dll";
+            var asm = System.Reflection.Assembly.UnsafeLoadFrom(location);
+            vars.logt("soulmemory.dll","loaded");
+            
+            vars.err = "Can't create instance of SoulMemory.EldenRing.EldenRing";
+            dynamic instance = asm.CreateInstance("SoulMemory.EldenRing.EldenRing");
+            vars.ER = instance;
+            vars.logt("SoulMemory.EldenRing.EldenRing", "instance created");
+
+            vars.err = "Can't get SoulMemory.EldenRing.Boss";
+            var bosses = asm.GetType("SoulMemory.EldenRing.Boss"); // enum of bosses
+
+
+            vars.err = "Can't read EldenRing memory";
+            vars.bossNames = new Dictionary<uint,string>();
+            vars.bossStates = new Dictionary<uint,bool>();
+            vars.ER.TryRefresh();
+
+            foreach (var boss in Enum.GetValues(bosses))
+            {
+                if (boss !=null)
+                {
+                    dynamic attr = boss.GetType().GetMember(boss.ToString()).FirstOrDefault().GetCustomAttributes().FirstOrDefault();
+                    vars.bossNames[(uint)boss] = attr.Name;
+                    vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
+                }
+            }
+            vars.log("Bosses enumerated"); 
+            
+        }
+        catch
+        {
+            vars.ER = null;
+            return false;
+        }
+        return true;
+    });
+    #endregion
+
     #region init controls
-    vars.prevBoss(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
     vars.displayDeathCounter(0);
+    vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+    vars.CreateSeparator(false);
+    vars.PreviousKillTime(TimeSpan.Zero);
+    vars.prevBossName(" ");
     #endregion
 }
 
@@ -152,6 +258,14 @@ init
     vars.displayDeathCounter(vars.deathCount.Current);
     vars.logt("death count", vars.deathCount.Current.ToString());
 
+
+
+    if (!vars.loadSoulMem())
+    {
+        vars.msgb(vars.err);
+        vars.log(vars.err);
+    }        
+
 }
 
 update
@@ -165,6 +279,21 @@ update
     
 	vars.isBossFight.Update(game);
     vars.shouldReset = (vars.isBossFight.Old == 0 && vars.isBossFight.Current == 1);
+
+    if (vars.ER == null)
+        return;
+    vars.ER.TryRefresh();
+    foreach(var kvp in vars.bossStates)
+    {
+        var currentState = vars.ER.ReadEventFlag(kvp.Key);
+        if (currentState!=kvp.Value)
+        {
+            vars.bossStates[kvp.Key] = currentState;
+            vars.prevBossName(vars.bossNames[kvp.Key]);
+            vars.PreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+        }
+    }
+
 }
 
 reset
@@ -175,7 +304,7 @@ reset
 	if (shouldReset)
     {
 		vars.logt("timer","reset");
-        vars.prevBoss(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+        vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
     }
     return shouldReset;
 }
