@@ -21,7 +21,7 @@ The script displays:
 ### How to use:
 - Your layout should contain at least a timer, add this script as a Scriptable Auto Splitter that, the other controls will be created automatically
 - The timing method should be "Game Time", the script will ask to change it if it's not the case
-- Play elddenring, enjoy!
+- Play eldenring, enjoy!
 
 
 ## Credit
