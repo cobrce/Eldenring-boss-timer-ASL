@@ -25,7 +25,7 @@ The script displays:
 
 
 ## Credit
-- Thanks to The Grand Archives for the AOB pattern
+- Thanks to Norii from The Grand Archives for the AOB pattern and inventory reading code
 - Thanks to [drtchops](https://github.com/drtchops/asl) for the the ASL repository
 - Thanks to Ero from autosplitter's discord for the help with controls creation
 - SplitMemory.dll is used to read state of Bosses
