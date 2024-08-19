@@ -119,7 +119,12 @@ startup
 
     vars.prevBossName = (Action<String>)((name)=>
     {
-        vars.setText(" ",name);
+        vars.setText("=",name);
+    });
+
+    vars.setNumOfGreatRunes = (Action<int>)((number)=>
+    {
+        vars.setText("Great runes",number.ToString());
     });
     #endregion
 
@@ -144,6 +149,11 @@ startup
     vars.ReadPointer = (Func<Process,IntPtr,IntPtr>)((proc,ptr) =>
     {
         return proc.ReadPointer(ptr);
+    });
+
+    vars.ReadInt = (Func<Process,IntPtr,Int32>)((proc,ptr) =>
+    {
+        return proc.ReadValue<Int32>(ptr);
     });
 
     // credits to https://github.com/drtchops/asl/blob/master/dxmd.asl
@@ -225,13 +235,28 @@ startup
         }
         return true;
     });
+    // vars.ItemFromLookupTable = (Func<UInt32,UInt32,object>)((Category,ItemID) =>
+    // {
+    //     if (vars.ER == null)
+    //         return null;
+    //     var ItemClass = vars.ER.GetType().Assembly.GetType("SoulMemory.EldenRing.Item");
+    //     var FromLookupTable = ItemClass.GetMethod("FromLookupTable");
+    //     var CategoryClass = vars.ER.GetType().Assembly.GetType("SoulMemory.EldenRing.Category");
+
+    //     var category = Enum.ToObject(CategoryClass, Category);
+    //     var itm = FromLookupTable.Invoke(null, new object[]{category,ItemID});
+    //     return itm;
+    // });
     #endregion
 
     #region init controls
+    vars.lastBattleWon = false;
+    vars.isPlayerLoaded = false;
+    vars.setNumOfGreatRunes(0);
     vars.displayDeathCounter(0);
-    vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+    vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
     vars.CreateSeparator(false);
-    vars.PreviousKillTime(TimeSpan.Zero);
+    vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
     vars.prevBossName(" ");
     #endregion
 }
@@ -248,6 +273,7 @@ init
     vars.logt("pointer", pointer.ToString("X"));
 
     var GameDataMan = vars.ReadPointer(game,pointer);
+    vars.GameDataMan = GameDataMan;
     vars.logt("GameDataMan", GameDataMan.ToString("X"));
     
     vars.isBossFight = new MemoryWatcher<byte>(GameDataMan+0xC0);
@@ -264,12 +290,14 @@ init
     {
         vars.msgb(vars.err);
         vars.log(vars.err);
+
     }        
 
 }
 
 update
 {
+    #region update death count and timer
     vars.deathCount.Update(game);
 	if (vars.deathCount.Current != vars.deathCount.Old)
 	{	
@@ -279,10 +307,32 @@ update
     
 	vars.isBossFight.Update(game);
     vars.shouldReset = (vars.isBossFight.Old == 0 && vars.isBossFight.Current == 1);
+    #endregion
 
-    if (vars.ER == null)
+    #region update soulmemory reading
+    if (vars.ER == null ) 
+    {
         return;
+    }
+
     vars.ER.TryRefresh();
+
+    var isPlayerLoadedOld = vars.isPlayerLoaded;
+    vars.isPlayerLoaded= vars.ER.IsPlayerLoaded();
+    if (!vars.isPlayerLoaded)
+    {
+        if (isPlayerLoadedOld)
+        {
+            vars.logt("Player","Logged out");
+        }
+        return;
+    } else if (!isPlayerLoadedOld)
+    {
+        vars.logt("Player","Logged in");
+    }
+
+
+    #region update bosses' state
     foreach(var kvp in vars.bossStates)
     {
         var currentState = vars.ER.ReadEventFlag(kvp.Key);
@@ -290,10 +340,101 @@ update
         {
             vars.bossStates[kvp.Key] = currentState;
             vars.prevBossName(vars.bossNames[kvp.Key]);
-            vars.PreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+            vars.lastBattleWon = true;
         }
     }
+    #endregion
 
+    
+    #region update inventory
+
+    var inventory = new List<UInt32>();
+    var KeyItemInvData = new int[]{ 0x5D0, 1, 384}; // offset,isKey,length
+
+    var playerGameData = vars.ReadPointer(game,vars.GameDataMan + 0x8 );
+    var equipInventoryData = vars.ReadPointer(game,playerGameData + KeyItemInvData[0]);
+
+    var inventoryList = vars.ReadPointer(game,equipInventoryData + 0x10 + 0x10*KeyItemInvData[1] );
+    var inventoryNum = vars.ReadInt(game,equipInventoryData + 0x18);
+
+    int count = 0;
+    for (int i = 0;i<KeyItemInvData[2];i++)
+    {
+        var itemStruct = inventoryList + (i *0X18);
+        var GaItemHandle = vars.ReadInt(game,itemStruct);
+        var itemID =(UInt32) vars.ReadInt(game,itemStruct + 4);
+        var itemType = itemID & 0xF0000000;
+        itemID = itemID & ~itemType;
+
+        var quantity = vars.ReadInt(game,itemStruct+8);
+
+        if (itemID <= 0x5FFFFFFF 
+        && itemID != 0
+        && quantity!= 0 
+        && itemID != 0xFFFFFFFF 
+        && GaItemHandle !=0)
+        {
+            inventory.Add(itemID);
+            count++;
+        }
+
+        if (count> inventoryNum)
+        {
+            break;
+        }
+
+    }
+
+    #region Read great runes // Not working
+    const int GODRICK_S_GREAT_RUNE = 191;
+    const int GODRICK_S_GREAT_RUNE_UNPOWERED = 8148;
+
+    const int RADAHN_S_GREAT_RUNE = 192;
+    const int RADAHN_S_GREAT_RUNE_UNPOWERED = 8149;
+
+    const int MORGOTT_S_GREAT_RUNE = 193; 
+    const int MORGOTT_S_GREAT_RUNE_UNPOWERED = 8150;
+
+    const int RYKARD_S_GREAT_RUNE = 194; 
+    const int RYKARD_S_GREAT_RUNE_UNPOWERED = 8151;
+    
+    const int MOHG_S_GREAT_RUNE = 195; 
+    const int MOHG_S_GREAT_RUNE_UNPOWERED = 8152;
+
+    const int MALENIA_S_GREAT_RUNE = 196;
+    const int MALENIA_S_GREAT_RUNE_UNPOWERED = 8153;
+
+    const int GREAT_RUNE_OF_THE_UNBORN = 10080;
+    
+
+    int[,] gt =
+    {
+        {GODRICK_S_GREAT_RUNE,GODRICK_S_GREAT_RUNE_UNPOWERED },
+        {RADAHN_S_GREAT_RUNE,RADAHN_S_GREAT_RUNE_UNPOWERED },
+        {MORGOTT_S_GREAT_RUNE,MORGOTT_S_GREAT_RUNE_UNPOWERED },
+        {RYKARD_S_GREAT_RUNE,RYKARD_S_GREAT_RUNE_UNPOWERED },
+        {MOHG_S_GREAT_RUNE,MOHG_S_GREAT_RUNE_UNPOWERED },
+        {MALENIA_S_GREAT_RUNE,MALENIA_S_GREAT_RUNE_UNPOWERED },
+        {GREAT_RUNE_OF_THE_UNBORN,GREAT_RUNE_OF_THE_UNBORN }
+    };
+
+    int numberOfGreateRunes = 0;
+
+    foreach (var item in inventory)
+    {
+        for (int i = 0;i < gt.GetLength(0);i++)
+        {
+            if (item== gt[i,0] || item == (gt[i,1]))
+            {
+                numberOfGreateRunes++;
+            }
+        }
+    }
+    vars.setNumOfGreatRunes(numberOfGreateRunes);
+
+    #endregion
+    #endregion
+    #endregion
 }
 
 reset
@@ -323,6 +464,11 @@ isLoading
 {
 	if (vars.isBossFight.Current == 0)
 	{
+        if (vars.lastBattleWon)
+        {
+            vars.PreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+            vars.lastBattleWon = false;
+        }
         if (vars.isBossFight.Old == 1)
         {
 		    vars.logt("timer","paused");
