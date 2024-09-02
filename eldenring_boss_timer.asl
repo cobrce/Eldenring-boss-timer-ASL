@@ -96,26 +96,27 @@ startup
     {
         dynamic component = vars.GetControl(Value1).Component;
         component.Settings.Text1 = Value1;
-        component.Settings.Text2 = Value2;    
+        if (Value2!=null)
+            component.Settings.Text2 = Value2;    
     });
 
 
     
-    vars.PrevBossTime = (Action<TimeSpan>)((time)=>
+    vars.PrevBossTime = (Action<object>)((time)=>
     {
-        vars.SetText("Previous fight time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+        vars.SetText("Previous fight time",time == null ? null : new DateTime(((TimeSpan)time).Ticks).ToString("HH:mm:ss.ff"));
     });
 
 
-    vars.DisplayDeathCounter = (Action<int>)((counter) =>
+    vars.DisplayDeathCounter = (Action<int?>)((counter) =>
     {
-        vars.SetText("Death counter",counter.ToString());
+        vars.SetText("Death counter",counter == null ? null : counter.ToString());
 
     });
 
-    vars.PreviousKillTime = (Action<TimeSpan>)((time)=>
+    vars.PreviousKillTime = (Action<object>)((time)=>
     {
-        vars.SetText("Previous boss time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+        vars.SetText("Previous boss time",time ==null ? null : new DateTime(((TimeSpan)time).Ticks).ToString("HH:mm:ss.ff"));
     });
 
     vars.PrevBossName = (Action<String>)((name)=>
@@ -123,9 +124,9 @@ startup
         vars.SetText("=",name);
     });
 
-    vars.SetNumOfGreatRunes = (Action<int>)((number)=>
+    vars.SetNumOfGreatRunes = (Action<int?>)((number)=>
     {
-        vars.SetText("Great runes",number.ToString());
+        vars.SetText("Great runes",number == null ? null : number.ToString());
     });
     #endregion
 
@@ -264,21 +265,35 @@ startup
 
     #region Reset/init controls
 
-    vars.Reset = (Action)(()=>{
+    vars.Reset = (Action<bool>)((keepValues)=>{
         if (vars.ER!=null)
         {
             vars.ResetBosses();
         }
         vars.LastBattleWon = false;
         vars.IsPlayerLoaded = false;
-        vars.SetNumOfGreatRunes(0);
-        vars.DisplayDeathCounter(0);
-        vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
-        vars.CreateSeparator(false);
-        vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
-        vars.PrevBossName(" ");
+        // conditional operator doesn't work for ssome reason, I had to do an if else statment
+        if (keepValues)
+        {
+            vars.SetNumOfGreatRunes(null);
+            vars.DisplayDeathCounter(null);
+            vars.PrevBossTime(null); // updated after each boss fight
+            vars.CreateSeparator(false);
+            vars.PreviousKillTime(null); // updated at the end of a winnig boss battle
+            vars.PrevBossName(null);
+        }
+        else
+        {
+            vars.SetNumOfGreatRunes(0);
+            vars.DisplayDeathCounter(0);
+            vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
+            vars.CreateSeparator(false);
+            vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
+            vars.PrevBossName(" ");
+        }
     });
-    vars.Reset();
+    vars.Reset(true);
+    vars.Startup = true; // don't set boss name at first startup
     #endregion
 }
 
@@ -349,7 +364,10 @@ update
         var currentState = vars.ER.ReadEventFlag(boss);
         if (currentState)
         {
-            vars.PrevBossName(vars.bossNames[boss]);
+            if (!vars.Startup)
+            {
+                vars.PrevBossName(vars.bossNames[boss]); // don't set boss name at first startup
+            }
             vars.LastBattleWon = true;
             defeated.Add(boss);
         }
@@ -473,13 +491,15 @@ update
     vars.IsBossFight.Update(game);
     vars.ShouldReset = (vars.IsBossFight.Old == 0 && vars.IsBossFight.Current == 1);
     #endregion
+
+    vars.Startup = false;
 }
 
 onReset
 {
     if (!vars.ShouldReset) // means that it was reset manually
     {
-        vars.Reset(); // reset every displayed information
+        vars.Reset(false); // reset every displayed information
         vars.Logt("Manual reset", "Done");
     }
     vars.ShouldReset = false;
