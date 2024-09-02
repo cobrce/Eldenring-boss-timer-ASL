@@ -4,24 +4,25 @@ state("eldenring")
 
 startup
 {
-    vars.shouldReset = false;
+    vars.ShouldReset = false;
+    vars.ER = null;
 
     Console.Clear();
     Console.WriteLine(DateTime.Now.ToString());
 
     #region log
 
-    vars.msgb = (Action<String>)((text) =>
+    vars.Msgb = (Action<String>)((text) =>
     {
         MessageBox.Show(text,"SoulMemScript",MessageBoxButtons.OK,MessageBoxIcon.Information);
     });
 
-    vars.log = (Action<String>) ((text) =>
+    vars.Log = (Action<String>) ((text) =>
     {
         print(String.Format("[ER boss timer] {0}",text));
         Console.WriteLine(String.Format("[ER boss timer] {0}",text));
     });
-    vars.logt = (Action<String,String>)((title,text)=>
+    vars.Logt = (Action<String,String>)((title,text)=>
     {
         print(String.Format("[ER boss timer : {0}] {1}",title,text));
         Console.WriteLine(String.Format("[ER boss timer : {0}] {1}",title,text));
@@ -44,7 +45,7 @@ startup
                     if (comp.Settings.Text1 == controlName)
                     {
                             controls[controlName] = control =  c;
-                            vars.logt("control found", controlName);
+                            vars.Logt("control found", controlName);
                             break;
                     }
                 }
@@ -56,11 +57,11 @@ startup
             if (control == null)
             {
                 controls[controlName]= control = LiveSplit.UI.Components.ComponentManager.LoadLayoutComponent("LiveSplit.Text.dll",timer);
-                vars.logt("control created", controlName);
+                vars.Logt("control created", controlName);
             }
             if (!timer.Layout.LayoutComponents.Contains(control))
             {
-                vars.logt("control added", controlName);
+                vars.Logt("control added", controlName);
                 timer.Layout.LayoutComponents.Add(control);
             }
         }
@@ -75,7 +76,7 @@ startup
             {
                 if(c.Component is LiveSplit.UI.Components.SeparatorComponent)
                 {
-                    vars.logt("Sperator", "Existing");
+                    vars.Logt("Sperator", "Existing");
                     found = true;
                     break;
                 }
@@ -84,14 +85,14 @@ startup
         {
             var compo = new LiveSplit.UI.Components.LayoutComponent("",new LiveSplit.UI.Components.SeparatorComponent());
             timer.Layout.LayoutComponents.Add(compo);
-            vars.logt("Separator","Created");
+            vars.Logt("Separator","Created");
         }
     });
     #endregion
 
     #region Update textboxes
 
-    vars.setText = (Action<String,String>)((Value1,Value2)=>
+    vars.SetText = (Action<String,String>)((Value1,Value2)=>
     {
         dynamic component = vars.GetControl(Value1).Component;
         component.Settings.Text1 = Value1;
@@ -100,31 +101,31 @@ startup
 
 
     
-    vars.prevBossTime = (Action<TimeSpan>)((time)=>
+    vars.PrevBossTime = (Action<TimeSpan>)((time)=>
     {
-        vars.setText("Previous fight time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+        vars.SetText("Previous fight time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
     });
 
 
-    vars.displayDeathCounter = (Action<int>)((counter) =>
+    vars.DisplayDeathCounter = (Action<int>)((counter) =>
     {
-        vars.setText("Death counter",counter.ToString());
+        vars.SetText("Death counter",counter.ToString());
 
     });
 
     vars.PreviousKillTime = (Action<TimeSpan>)((time)=>
     {
-        vars.setText("Previous boss time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
+        vars.SetText("Previous boss time",new DateTime(time.Ticks).ToString("HH:mm:ss.ff"));
     });
 
-    vars.prevBossName = (Action<String>)((name)=>
+    vars.PrevBossName = (Action<String>)((name)=>
     {
-        vars.setText("=",name);
+        vars.SetText("=",name);
     });
 
-    vars.setNumOfGreatRunes = (Action<int>)((number)=>
+    vars.SetNumOfGreatRunes = (Action<int>)((number)=>
     {
-        vars.setText("Great runes",number.ToString());
+        vars.SetText("Great runes",number.ToString());
     });
     #endregion
 
@@ -184,7 +185,16 @@ startup
 
     #region Load soulmemory.dll
 
-    vars.loadSoulMem = (Func<bool>)(()=> 
+    vars.ResetBosses = (Action)(()=>
+    {
+        vars.RemainingBoss = new List<uint>();
+        foreach(var kvp in vars.bossNames)
+        {
+            vars.RemainingBoss.Add(kvp.Key);
+        }
+    });
+
+    vars.LoadSoulMem = (Func<bool>)(()=> 
     {
         try
         {
@@ -196,16 +206,16 @@ startup
                 return false;
             }
             
-            vars.logt("soulmemory.dll", "found");
+            vars.Logt("soulmemory.dll", "found");
 
             vars.err = "Can't load soulmemory.dll";
             var asm = System.Reflection.Assembly.UnsafeLoadFrom(location);
-            vars.logt("soulmemory.dll","loaded");
+            vars.Logt("soulmemory.dll","loaded");
             
             vars.err = "Can't create instance of SoulMemory.EldenRing.EldenRing";
             dynamic instance = asm.CreateInstance("SoulMemory.EldenRing.EldenRing");
             vars.ER = instance;
-            vars.logt("SoulMemory.EldenRing.EldenRing", "instance created");
+            vars.Logt("SoulMemory.EldenRing.EldenRing", "instance created");
 
             vars.err = "Can't get SoulMemory.EldenRing.Boss";
             var bosses = asm.GetType("SoulMemory.EldenRing.Boss"); // enum of bosses
@@ -213,19 +223,22 @@ startup
 
             vars.err = "Can't read EldenRing memory";
             vars.bossNames = new Dictionary<uint,string>();
-            vars.bossStates = new Dictionary<uint,bool>();
+            // vars.bossStates = new Dictionary<uint,bool>();
             vars.ER.TryRefresh();
 
+
+            vars.err = "Can't enumerate bosses";
             foreach (var boss in Enum.GetValues(bosses))
             {
                 if (boss !=null)
                 {
                     dynamic attr = boss.GetType().GetMember(boss.ToString()).FirstOrDefault().GetCustomAttributes().FirstOrDefault();
                     vars.bossNames[(uint)boss] = attr.Name;
-                    vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
+                    // vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
                 }
             }
-            vars.log("Bosses enumerated"); 
+            vars.ResetBosses();
+            vars.Log("Bosses enumerated"); 
             
         }
         catch
@@ -249,47 +262,55 @@ startup
     // });
     #endregion
 
-    #region init controls
-    vars.lastBattleWon = false;
-    vars.isPlayerLoaded = false;
-    vars.setNumOfGreatRunes(0);
-    vars.displayDeathCounter(0);
-    vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
-    vars.CreateSeparator(false);
-    vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
-    vars.prevBossName(" ");
+    #region Reset/init controls
+
+    vars.Reset = (Action)(()=>{
+        if (vars.ER!=null)
+        {
+            vars.ResetBosses();
+        }
+        vars.LastBattleWon = false;
+        vars.IsPlayerLoaded = false;
+        vars.SetNumOfGreatRunes(0);
+        vars.DisplayDeathCounter(0);
+        vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
+        vars.CreateSeparator(false);
+        vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
+        vars.PrevBossName(" ");
+    });
+    vars.Reset();
     #endregion
 }
 
 init
 {
-    vars.logt("Init","");
+    vars.Logt("Init","");
     var module = modules.FirstOrDefault(m => m.ModuleName.ToLower() == "eldenring.exe");
     var scanner = new SignatureScanner(game, module.BaseAddress, module.ModuleMemorySize);
     var codeLocation = scanner.Scan(vars.sigScanTarget);
-    vars.logt("pattern found", codeLocation.ToString("X"));
+    vars.Logt("pattern found", codeLocation.ToString("X"));
     	
     var pointer = vars.ReadOffset(game,codeLocation,4,0);
-    vars.logt("pointer", pointer.ToString("X"));
+    vars.Logt("pointer", pointer.ToString("X"));
 
     var GameDataMan = vars.ReadPointer(game,pointer);
     vars.GameDataMan = GameDataMan;
-    vars.logt("GameDataMan", GameDataMan.ToString("X"));
+    vars.Logt("GameDataMan", GameDataMan.ToString("X"));
     
-    vars.isBossFight = new MemoryWatcher<byte>(GameDataMan+0xC0);
-    vars.logt("isBossFight", vars.isBossFight.Current.ToString());
+    vars.IsBossFight = new MemoryWatcher<byte>(GameDataMan+0xC0);
+    vars.Logt("isBossFight", vars.IsBossFight.Current.ToString());
 
     vars.deathCount = new MemoryWatcher<int>(GameDataMan+0x94);
     vars.deathCount.Update(game);
-    vars.displayDeathCounter(vars.deathCount.Current);
-    vars.logt("death count", vars.deathCount.Current.ToString());
+    vars.DisplayDeathCounter(vars.deathCount.Current);
+    vars.Logt("death count", vars.deathCount.Current.ToString());
 
 
 
-    if (!vars.loadSoulMem())
+    if (!vars.LoadSoulMem())
     {
-        vars.msgb(vars.err);
-        vars.log(vars.err);
+        vars.Msgb(vars.err);
+        vars.Log(vars.err);
 
     }        
 
@@ -297,50 +318,52 @@ init
 
 update
 {
-    #region update death count and timer
-    vars.deathCount.Update(game);
-	if (vars.deathCount.Current != vars.deathCount.Old)
-	{	
-        vars.logt("death count", vars.deathCount.Current.ToString());
-        vars.displayDeathCounter(vars.deathCount.Current);
-	}	
-    
-	vars.isBossFight.Update(game);
-    vars.shouldReset = (vars.isBossFight.Old == 0 && vars.isBossFight.Current == 1);
-    #endregion
-
-    #region update soulmemory reading
     if (vars.ER == null ) 
     {
         return;
     }
 
+
+    #region update soulmemory reading
     vars.ER.TryRefresh();
 
-    var isPlayerLoadedOld = vars.isPlayerLoaded;
-    vars.isPlayerLoaded= vars.ER.IsPlayerLoaded();
-    if (!vars.isPlayerLoaded)
+    var isPlayerLoadedOld = vars.IsPlayerLoaded;
+    vars.IsPlayerLoaded= vars.ER.IsPlayerLoaded();
+    if (!vars.IsPlayerLoaded)
     {
         if (isPlayerLoadedOld)
         {
-            vars.logt("Player","Logged out");
+            vars.Logt("Player","Logged out");
         }
         return;
     } else if (!isPlayerLoadedOld)
     {
-        vars.logt("Player","Logged in");
+        vars.Logt("Player","Logged in");
     }
 
 
     #region update bosses' state
-    foreach(var kvp in vars.bossStates)
+    var defeated = new List<uint>();
+    foreach (var boss in vars.RemainingBoss)
     {
-        var currentState = vars.ER.ReadEventFlag(kvp.Key);
-        if (currentState!=kvp.Value)
+        var currentState = vars.ER.ReadEventFlag(boss);
+        if (currentState)
         {
-            vars.bossStates[kvp.Key] = currentState;
-            vars.prevBossName(vars.bossNames[kvp.Key]);
-            vars.lastBattleWon = true;
+            vars.PrevBossName(vars.bossNames[boss]);
+            vars.LastBattleWon = true;
+            defeated.Add(boss);
+        }
+    }
+    foreach(var boss in defeated)
+    {
+        vars.RemainingBoss.Remove(boss);
+    }
+
+    if (defeated.Count > 0)
+    {
+        foreach(var boss in vars.RemainingBoss)
+        {
+            vars.Logt("RemainingBoss", vars.bossNames[boss]);
         }
     }
     #endregion
@@ -385,7 +408,7 @@ update
 
     }
 
-    #region Read great runes // Not working
+    #region Read great runes 
     const int GODRICK_S_GREAT_RUNE = 191;
     const int GODRICK_S_GREAT_RUNE_UNPOWERED = 8148;
 
@@ -430,22 +453,45 @@ update
             }
         }
     }
-    vars.setNumOfGreatRunes(numberOfGreateRunes);
+    vars.SetNumOfGreatRunes(numberOfGreateRunes);
 
     #endregion
     #endregion
+    #endregion
+
+    #region update death count and timer
+
+    if (vars.IsPlayerLoaded)
+    {
+        vars.deathCount.Update(game);
+        if (vars.deathCount.Current != vars.deathCount.Old)
+        {	
+            vars.Logt("death count", vars.deathCount.Current.ToString());
+            vars.DisplayDeathCounter(vars.deathCount.Current);
+        }	
+    }
+    vars.IsBossFight.Update(game);
+    vars.ShouldReset = (vars.IsBossFight.Old == 0 && vars.IsBossFight.Current == 1);
     #endregion
 }
 
+onReset
+{
+    if (!vars.ShouldReset) // means that it was reset manually
+    {
+        vars.Reset(); // reset every displayed information
+        vars.Logt("Manual reset", "Done");
+    }
+    vars.ShouldReset = false;
+}
 reset
 {
-    var shouldReset = vars.shouldReset; // resets the timer when a new boss fight begins
-    vars.shouldReset = false;
+    var shouldReset = vars.ShouldReset; // resets the timer when a new boss fight begins
 	
 	if (shouldReset)
     {
-		vars.logt("timer","reset");
-        vars.prevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+		vars.Logt("timer","reset");
+        vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
     }
     return shouldReset;
 }
@@ -453,25 +499,25 @@ reset
 
 start
 {
-	if (vars.isBossFight.Current == 1)
+	if (vars.IsBossFight.Current == 1)
 	{
-        vars.logt("timer","started");
+        vars.Logt("timer","started");
 		return true; // start timer during boss fight (called only when timer is reset)
 	}
 }
 
 isLoading
 {
-	if (vars.isBossFight.Current == 0)
+	if (vars.IsBossFight.Current == 0)
 	{
-        if (vars.lastBattleWon)
+        if (vars.LastBattleWon)
         {
             vars.PreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
-            vars.lastBattleWon = false;
+            vars.LastBattleWon = false;
         }
-        if (vars.isBossFight.Old == 1)
+        if (vars.IsBossFight.Old == 1)
         {
-		    vars.logt("timer","paused");
+		    vars.Logt("timer","paused");
         }
 		return true;
 	}
