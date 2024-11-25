@@ -101,8 +101,14 @@ startup
     });
 
 
-    
-    vars.PrevBossTime = (Action<object>)((time)=>
+
+
+    vars.DisplayKilledBosses = (Action<object>)((text)=>
+    {
+        vars.SetText("Killed bosses",text);
+    });
+
+    vars.DisplayPrevBossTime = (Action<object>)((time)=>
     {
         vars.SetText("Previous fight time",time == null ? null : new DateTime(((TimeSpan)time).Ticks).ToString("HH:mm:ss.ff"));
     });
@@ -114,19 +120,23 @@ startup
 
     });
 
-    vars.PreviousKillTime = (Action<object>)((time)=>
+    vars.DisplayPreviousKillTime = (Action<object>)((time)=>
     {
         vars.SetText("Previous boss time",time ==null ? null : new DateTime(((TimeSpan)time).Ticks).ToString("HH:mm:ss.ff"));
     });
 
-    vars.PrevBossName = (Action<String>)((name)=>
+    vars.DisplayPrevBossName = (Action<String>)((name)=>
     {
         vars.SetText("=",name);
     });
 
-    vars.SetNumOfGreatRunes = (Action<int?>)((number)=>
+    vars.DisplayNumOfGreatRunes = (Action<int?>)((number)=>
     {
         vars.SetText("Great runes",number == null ? null : number.ToString());
+    });
+
+    vars.DisplayDefeatedBosses = (Action<String>)((text)=>{
+        vars.SetText("Defeated bosses",text);
     });
     #endregion
 
@@ -189,7 +199,7 @@ startup
     vars.ResetBosses = (Action)(()=>
     {
         vars.RemainingBoss = new List<uint>();
-        foreach(var kvp in vars.bossNames)
+        foreach(var kvp in vars.BossesNames)
         {
             vars.RemainingBoss.Add(kvp.Key);
         }
@@ -223,7 +233,7 @@ startup
 
 
             vars.err = "Can't read EldenRing memory";
-            vars.bossNames = new Dictionary<uint,string>();
+            vars.BossesNames = new Dictionary<uint,string>();
             // vars.bossStates = new Dictionary<uint,bool>();
             vars.ER.TryRefresh();
 
@@ -234,8 +244,8 @@ startup
                 if (boss !=null)
                 {
                     dynamic attr = boss.GetType().GetMember(boss.ToString()).FirstOrDefault().GetCustomAttributes().FirstOrDefault();
-                    vars.bossNames[(uint)boss] = attr.Name;
                     // vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
+                    vars.BossesNames[(uint)boss] = attr.Name;
                 }
             }
             vars.ResetBosses();
@@ -272,24 +282,22 @@ startup
         }
         vars.LastBattleWon = false;
         vars.IsPlayerLoaded = false;
+        vars.DisplayDeathCounter(0);
+        vars.DisplayNumOfGreatRunes(0);
         // conditional operator doesn't work for ssome reason, I had to do an if else statment
         if (keepValues)
         {
-            vars.SetNumOfGreatRunes(null);
-            vars.DisplayDeathCounter(null);
-            vars.PrevBossTime(null); // updated after each boss fight
+            vars.DisplayPrevBossTime(null); // updated after each boss fight
             vars.CreateSeparator(false);
-            vars.PreviousKillTime(null); // updated at the end of a winnig boss battle
-            vars.PrevBossName(null);
+            vars.DisplayPreviousKillTime(null); // updated at the end of a winnig boss battle
+            vars.DisplayPrevBossName(null);
         }
         else
         {
-            vars.SetNumOfGreatRunes(0);
-            vars.DisplayDeathCounter(0);
-            vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
+            vars.DisplayPrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero); // updated after each boss fight
             vars.CreateSeparator(false);
-            vars.PreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
-            vars.PrevBossName(" ");
+            vars.DisplayPreviousKillTime(TimeSpan.Zero); // updated at the end of a winnig boss battle
+            vars.DisplayPrevBossName(" ");
         }
     });
     vars.Reset(true);
@@ -366,7 +374,7 @@ update
         {
             if (!vars.Startup)
             {
-                vars.PrevBossName(vars.bossNames[boss]); // don't set boss name at first startup
+                vars.DisplayPrevBossName(vars.BossesNames[boss]); // don't set boss name at first startup
             }
             vars.LastBattleWon = true;
             defeated.Add(boss);
@@ -381,7 +389,7 @@ update
     {
         foreach(var boss in vars.RemainingBoss)
         {
-            vars.Logt("RemainingBoss", vars.bossNames[boss]);
+            vars.Logt("RemainingBoss", vars.BossesNames[boss]);
         }
     }
     #endregion
@@ -471,7 +479,7 @@ update
             }
         }
     }
-    vars.SetNumOfGreatRunes(numberOfGreateRunes);
+    vars.DisplayNumOfGreatRunes(numberOfGreateRunes);
 
     #endregion
     #endregion
@@ -492,6 +500,7 @@ update
     vars.ShouldReset = (vars.IsBossFight.Old == 0 && vars.IsBossFight.Current == 1);
     #endregion
 
+
     vars.Startup = false;
 }
 
@@ -511,7 +520,7 @@ reset
 	if (shouldReset)
     {
 		vars.Logt("timer","reset");
-        vars.PrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+        vars.DisplayPrevBossTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
     }
     return shouldReset;
 }
@@ -532,7 +541,7 @@ isLoading
 	{
         if (vars.LastBattleWon)
         {
-            vars.PreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
+            vars.DisplayPreviousKillTime(timer.CurrentTime.GameTime ?? TimeSpan.Zero);
             vars.LastBattleWon = false;
         }
         if (vars.IsBossFight.Old == 1)
