@@ -101,6 +101,39 @@ startup
     });
 
 
+    /* category of run (all bosses, all remembrances..etc)
+    0 Custom
+    1 All bosses
+    2 All base game
+    3 All remembrances
+    4 All DLC bosses
+    5 Main DLC bosses (remembrances + bayle)
+    */
+    vars.DisplayCategory = (Action<object>)((category) =>
+    {
+        string text = null;
+
+        var categories = new string[]{
+            "Custom",
+            "All bosses",
+            "Base game bosses",
+            "All remembrances",
+            "DLC all bosses",
+            "Main DLC Bosses"
+        };
+        if (category!=null)
+        {
+            int iCategory = (int)category;
+            if (iCategory >= categories.Length || iCategory < 0)
+            {
+                iCategory = 0;
+            }
+            text = categories[iCategory];
+        }
+        // Console.WriteLine(text == null? "" : text);
+        vars.SetText("Category",text);
+
+    });
 
 
     vars.DisplayKilledBosses = (Action<object>)((text)=>
@@ -239,15 +272,89 @@ startup
 
 
             vars.err = "Can't enumerate bosses";
+            var BaseGameBosses = new List<uint>();
+            var DLCBosses = new List<uint>();
+            vars.MainDLCBosses = new uint[]{
+                2054390800, // Bayle
+                21010800, // Messmer
+                25000800, // Metyr
+                2048440800, // Rellana
+                2049480800, // Gaius
+                2050480800, // Scadutree avatar
+                28000800, // Midra,
+                13000830, // Romina
+                20000800, // Divine Beast
+                22000800, // Putrescent Knight
+                20010800 // Consort Radahn
+            };
+            vars.RemembranceBosses = new uint[]{
+                10000800, // Godrick
+                1252380800, // Starscourge Radahn
+                14000800, // Rennala
+                11000800, // Morgot
+                11050800, // Hoara loux
+                1052520800, // Fire Giant
+                15000800, // Malenia
+                16000800, // Rykard
+                19000800, // Elden beast
+                12050800, // Mohg lord of blood
+                12050800, // Regal ancestra spirit
+                13000800, // Maliketh
+                13000830, // Placidusax
+                12040800, // Astel
+                12030850, // Fortissax
+                // 2054390800, // Bayle
+                21010800, // Messmer
+                25000800, // Metyr
+                2048440800, // Rellana
+                2049480800, // Gaius
+                2050480800, // Scadutree avatar
+                28000800, // Midra,
+                13000830, // Romina
+                20000800, // Divine Beast
+                22000800, // Putrescent Knight
+                20010800 // Consort Radahn
+            };
+
+            List<string> DLClocations = new List<string>() { 
+                "Enir-Ilim",
+                "Abyssal Woods",
+                "Scaduview",
+                "Jagged Peak",
+                "Charo's Hidden Grave",
+                "Cerulean Coast",
+                "Church of the Bud",
+                "Ancient Ruins of Rauh",
+                "Shadow Keep",
+                "Scadu Altus",
+                "Castle Ensis",
+                "Belurat, Tower Settlement",
+                "Gravesite Plain"};
+            // var currentList = BaseGameBosses;
+
             foreach (var boss in Enum.GetValues(bosses))
             {
                 if (boss !=null)
                 {
                     dynamic attr = boss.GetType().GetMember(boss.ToString()).FirstOrDefault().GetCustomAttributes().FirstOrDefault();
-                    // vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
                     vars.BossesNames[(uint)boss] = attr.Name;
+
+                    if (DLClocations.Contains(attr.Description))
+                    {
+                        DLCBosses.Add((uint)boss);
+                    }
+                    else
+                    {
+                        BaseGameBosses.Add((uint)boss);
+                    }
+                //     // vars.bossStates[(uint)boss]= vars.ER.ReadEventFlag((uint)boss);
                 }
             }
+
+            vars.BaseGameBosses = BaseGameBosses.ToArray();
+            vars.DLCBosses = DLCBosses.ToArray();
+
+
             vars.ResetBosses();
             vars.Log("Bosses enumerated"); 
             
@@ -273,6 +380,28 @@ startup
     // });
     #endregion
 
+    #region Config
+
+    settings.Add("Custom category (default)"); // 0
+    settings.Add("All bosses"); // 1
+    settings.Add("All Base game bosses"); // 2
+    settings.Add("All remembrances"); // 3
+    settings.Add("All DLC Bosses"); // 4
+    settings.Add("Main DLC bosses"); // 5
+
+    /*
+    0 Custom (display number of defeated bosses)
+    1 All bosses (number of defeated bosses / total bosses)
+    2 All base game (defeated base game bosses / base game bosses)
+    3 All remembrances (defeated remembrances / all remembrances)
+    4 All DLC bosses (defeated dlc bosses / all dlc bosses)
+    5 Main DLC bosses AKA DLC remembrances + bayle (defeated main dlc bosses / all main dlc bosses)
+    */
+    vars.Category = 0;
+
+
+    #endregion
+
     #region Reset/init controls
 
     vars.Reset = (Action<bool>)((keepValues)=>{
@@ -282,6 +411,8 @@ startup
         }
         vars.LastBattleWon = false;
         vars.IsPlayerLoaded = false;
+        vars.DisplayCategory(vars.Category);
+        vars.DisplayDefeatedBosses("0");
         vars.DisplayDeathCounter(0);
         vars.DisplayNumOfGreatRunes(0);
         // conditional operator doesn't work for ssome reason, I had to do an if else statment
@@ -328,7 +459,39 @@ init
     vars.DisplayDeathCounter(vars.deathCount.Current);
     vars.Logt("death count", vars.deathCount.Current.ToString());
 
+    vars.UpdateCategory = (Action)(()=>{
+        
+        vars.Category = 0;
 
+        if (settings["Custom category (default)"])
+        {
+            vars.Category = 0;
+        }
+        if (settings["All bosses"])
+        {
+            vars.Category = 1;
+        }
+        else if (settings["All Base game bosses"])
+        {
+            vars.Category = 2;
+        }
+        else if (settings["All remembrances"])
+        {
+            vars.Category = 3;
+        }
+        else if (settings["All DLC Bosses"])
+        {
+            vars.Category = 4;
+        }
+        else if (settings["Main DLC bosses"])
+        {
+            vars.Category = 5;
+        }
+        
+        vars.DisplayCategory(vars.Category);
+    });
+    
+    vars.UpdateCategory();
 
     if (!vars.LoadSoulMem())
     {
@@ -346,6 +509,10 @@ update
         return;
     }
 
+
+    #region update category
+    vars.UpdateCategory();
+    #endregion
 
     #region update soulmemory reading
     vars.ER.TryRefresh();
@@ -394,7 +561,48 @@ update
     }
     #endregion
 
+    #region update number defeated bosses (based on category)
+
+
+    string text = (vars.BossesNames.Count - vars.RemainingBoss.Count).ToString();
+    uint[] targetGroup = null;
+    switch ((int)vars.Category)
+    {
+        case 1:// All bosses
+           text+= "/" + vars.BossesNames.Count.ToString(); 
+            break;
+        case 2: // All base game
+            targetGroup = vars.BaseGameBosses;
+            break;
+        case 3: // All remembrances
+            targetGroup = vars.RemembranceBosses;
+            break;
+        case 4:// All DLC bosses
+            targetGroup = vars.DLCBosses;
+            break;
+        case 5: // Main DLC bosses (remembrances + bayle)
+            targetGroup = vars.MainDLCBosses;
+            break;
+        default: // custom
+            break;
+    }
+    if (targetGroup != null)
+    {
+        int tempRemainingBosses = 0;
+        foreach(var boss in vars.RemainingBoss)
+        {
+            if (targetGroup.ToList().Contains(boss))
+            {
+                tempRemainingBosses++;
+            }
+        }
+        text = String.Format("{0}/{1}",targetGroup.Length - tempRemainingBosses, targetGroup.Length);
+    }
+    vars.DisplayDefeatedBosses(text);
     
+
+    #endregion
+
     #region update inventory
 
     var inventory = new List<UInt32>();
