@@ -6,8 +6,15 @@ startup
 {
     vars.ShouldReset = false;
     vars.ER = null;
-
-    Console.Clear();
+	
+	try
+	{
+		Console.Clear();
+	}
+	catch
+	{
+	}
+		
     Console.WriteLine(DateTime.Now.ToString());
 
     #region log
