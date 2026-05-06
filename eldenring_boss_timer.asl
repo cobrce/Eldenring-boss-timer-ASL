@@ -108,6 +108,35 @@ startup
     });
 
 
+    vars.CreateTitle = (Action)(()=>
+    {
+        bool found = false;
+        LiveSplit.UI.Components.ILayoutComponent title = null;
+        foreach (var c in timer.Layout.LayoutComponents)
+        {
+            if (c.Component.GetType().Assembly.FullName.StartsWith("LiveSplit.Title"))
+            {
+                found = true;
+                title = c;
+            }
+        }
+
+        if (!found)
+        {
+            title = LiveSplit.UI.Components.ComponentManager.LoadLayoutComponent("LiveSplit.Title.dll",timer);
+            timer.Layout.LayoutComponents.Add(title);
+        }
+
+        dynamic comp = title.Component;
+        comp.Settings.ShowGameName = true;
+        comp.Settings.ShowCategoryName = true;
+        comp.Settings.ShowAttemptCount = false;
+        comp.Settings.SingleLine = true;
+        comp.Settings.BackgroundColor = System.Drawing.Color.Black;
+        comp.Settings.BackgroundColor2 = System.Drawing.Color.FromArgb(0,0,0,0);
+    });
+
+
     /* category of run (all bosses, all remembrances..etc)
     0 Custom
     1 All bosses
@@ -138,7 +167,9 @@ startup
             text = categories[iCategory];
         }
         // Console.WriteLine(text == null? "" : text);
-        vars.SetText("Category",text);
+        // vars.SetText("Category",text);
+
+        timer.Run.CategoryName = text;
 
     });
 
@@ -438,6 +469,8 @@ startup
             vars.DisplayPrevBossName(" ");
         }
     });
+    timer.Run.GameName = "Elden Ring";
+    vars.CreateTitle();
     vars.Reset(true);
     vars.Startup = true; // don't set boss name at first startup
     #endregion
@@ -446,6 +479,10 @@ startup
 init
 {
     vars.Logt("Init","");
+    
+    var icon = System.Drawing.Icon.ExtractAssociatedIcon(game.MainModule.FileName);
+    timer.Run.GameIcon = icon.ToBitmap();
+
     var module = modules.FirstOrDefault(m => m.ModuleName.ToLower() == "eldenring.exe");
     var scanner = new SignatureScanner(game, module.BaseAddress, module.ModuleMemorySize);
     var codeLocation = scanner.Scan(vars.sigScanTarget);
